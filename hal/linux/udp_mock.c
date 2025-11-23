@@ -46,9 +46,22 @@ void hal_net_send(int target_id, uint8_t* data, size_t len){
     struct sockaddr_in addr;
     memset(&addr, 0, sizeof(addr));
     addr.sin_family = AF_INET;
-    addr.sin_addr.s_addr = htonl("127.0.0.1");
+    addr.sin_addr.s_addr = inet_addr("127.0.0.1");
     addr.sin_port = htons(my_port);
 
     sendto(sock_fd, data, len, 0, (struct sockaddr *)&addr, sizeof(addr));
 
+}
+
+void hal_net_poll(void){
+    char buffer[1024];
+    struct sockaddr_in sender;
+    socklen_t len = sizeof(sender);
+    
+    int n = recvfrom(sock_fd, buffer, 1024, 0, (struct sockaddr *)&sender, &len);
+    
+    if (n > 0) {
+        buffer[n] = '\0';
+        printf("[HAL] Received Packet: %s\n", buffer);
+    }
 }
