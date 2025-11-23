@@ -11,8 +11,7 @@
 static int sock_fd;
 
 
-void hal_init(int my_node_id)
-{
+void hal_init(int my_node_id){
     sock_fd = socket(AF_INET, SOCK_DGRAM, 0);
     if (sock_fd < 0){
         perror("ERROR: Socket creation failed");
@@ -36,4 +35,20 @@ void hal_init(int my_node_id)
     fcntl(sock_fd, F_SETFL, flags | O_NONBLOCK);
 
     printf("[HAL] Node %d Online on Port %d\n", my_node_id, my_port);
+}
+
+
+void hal_net_send(int target_id, uint8_t* data, size_t len){
+    
+    
+    int my_port = 8000 + target_id;
+
+    struct sockaddr_in addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = htonl("127.0.0.1");
+    addr.sin_port = htons(my_port);
+
+    sendto(sock_fd, data, len, 0, (struct sockaddr *)&addr, sizeof(addr));
+
 }
