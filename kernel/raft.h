@@ -23,4 +23,7 @@ typedef struct {
     uint8_t payload[]; //for extra data
 } RaftPacket;
 
+
+extern void handle_packet(RaftPacket*);
+
 #endif

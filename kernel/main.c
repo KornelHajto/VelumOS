@@ -14,6 +14,8 @@ enum RaftState role;
 int voted;
 int term; //election
 
+int my_id;
+
 int vote_cnt;
 time_t rnd_timeout;
 time_t vote_start_time;
@@ -24,7 +26,7 @@ int main(int argc, char** argv){
         fprintf(stderr, "ERROR: Zero argument, 1 argument is required.\n");
         exit(1);
     }
-    int my_id = atoi(argv[1]);
+    my_id = atoi(argv[1]);
     if(my_id == 0){
         fprintf(stderr, "ERROR: Argument is not a number.\n");
         exit(1);
@@ -100,4 +102,43 @@ int main(int argc, char** argv){
 
     }
     return 0;
+}
+
+void handle_packet(RaftPacket* rp){
+    if(rp->term > term){
+        term = rp->term;
+        role = FOLLOWER;
+    }
+
+    switch (rp->type)
+    {
+    case REQUEST_VOTE:
+        RaftPacket rp_temp;
+        if(voted == -1 && rp->term == term){
+            voted = rp->sender_id;
+            last_heartbeat_time = time(NULL);
+            rp_temp.sender_id = my_id;
+            rp_temp.term = term;
+            rp_temp.type = GRANT_VOTE;
+            hal_net_send(voted, (uint8_t*)&rp_temp, sizeof(RaftPacket));
+        }else{
+            rp_temp.sender_id = my_id;
+            rp_temp.term = term;
+            rp_temp.type = GRANT_VOTE;
+            hal_net_send(rp->sender_id, (uint8_t*)&rp_temp, sizeof(RaftPacket));
+        }
+        break;
+    case GRANT_VOTE:
+        if(role == CANDIDATE && rp->term == term){
+            vote_cnt++;
+        }
+        break;
+    case HEARTBEAT:
+        last_heartbeat_time = time(NULL);
+        printf("[NODE %d] Received Heartbeat from %d. Timer reset.\n", my_id, rp->sender_id);
+        break;
+    
+    default:
+        break;
+    }
 }
