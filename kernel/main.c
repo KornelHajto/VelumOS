@@ -7,12 +7,12 @@
 
 int main(int argc, char** argv){
     if(argc < 2){
-        fprintf(stderr, "ERROR: Zero argument, 1 argument is required.");
+        fprintf(stderr, "ERROR: Zero argument, 1 argument is required.\n");
         exit(1);
     }
     int my_id = atoi(argv[1]);
     if(my_id == 0){
-        fprintf(stderr, "ERROR: Argument is not a number.");
+        fprintf(stderr, "ERROR: Argument is not a number.\n");
         exit(1);
     }
     
