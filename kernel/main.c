@@ -4,6 +4,12 @@
 #include <string.h>
 #include <unistd.h>
 #include "../hal/hal_network.h"
+#include "raft.h"
+
+enum RaftState role;
+int voted;
+int term; //election
+
 
 int main(int argc, char** argv){
     if(argc < 2){
@@ -16,6 +22,10 @@ int main(int argc, char** argv){
         exit(1);
     }
     
+    role = FOLLOWER;
+    voted = -1;
+    term = 0;
+
     hal_init(my_id);
 
     while (1) {
@@ -27,17 +37,21 @@ int main(int argc, char** argv){
 
         hal_net_poll();
 
-        if (my_id == 1) {
-            char* msg = "PING from Node 1";
-            hal_net_send(2, (uint8_t*)&rp, sizeof(RaftPacket));
-            sleep(1);
+        switch(role) {
+            case FOLLOWER:
+                break;
+            case CANDIDATE:
+                break;
+            case LEADER:
+                rp.term = term;
+                rp.type = HEARTBEAT;
+                int target_id = 3 - my_id;
+                hal_net_send(target_id, (uint8_t*)&rp, sizeof(RaftPacket));
+                break;
+            default:
+                break;
         }
 
-        if(my_id == 2){
-            char* msg = "PONG from Node 2";
-            hal_net_send(1, (uint8_t*)&rp, sizeof(RaftPacket));
-            sleep(1);
-        }
     }
     return 0;
 }

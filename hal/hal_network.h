@@ -4,20 +4,6 @@
 #include <stdint.h>
 #include <stddef.h>
 
-enum RaftPacketType {
-    REQUEST_VOTE,
-    GRANT_VOTE,
-    HEARTBEAT
-};
-
-
-typedef struct {
-    uint32_t term; //election cycle 
-    uint8_t type; //data
-    uint8_t sender_id;
-    uint8_t payload[]; //for extra data
-} RaftPacket;
-
 
 /* Initialization */
 void hal_init(int my_node_id);
