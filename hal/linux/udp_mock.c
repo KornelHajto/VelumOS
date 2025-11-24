@@ -61,7 +61,7 @@ void hal_net_poll(void){
     int n = recvfrom(sock_fd, buffer, 1024, 0, (struct sockaddr *)&sender, &len);
     
     if (n > 0) {
-        buffer[n] = '\0';
-        printf("[HAL] Received Packet: %s\n", buffer);
+        RaftPacket* rp = (RaftPacket*)buffer;
+        printf("[HAL] Received Packet | Term: %d | Type: %d | From Node: %d\n",rp->term, rp->type, rp->sender_id);
     }
 }
