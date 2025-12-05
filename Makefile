@@ -3,7 +3,7 @@ CFLAGS = -Wall -Iinclude
 
 TARGET = node
 
-SRCS = src/main.c src/network.c src/node_logic.c
+SRCS = src/main.c src/network.c src/raft.c
 
 OBJS = $(SRCS:.c=.o)
 

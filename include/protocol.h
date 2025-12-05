@@ -13,6 +13,24 @@ typedef enum {
 } MsgType;
 
 typedef struct {
+  uint32_t term;
+  uint32_t candidate_id;
+  uint32_t last_log_index;
+  uint32_t last_log_term;
+} VoteRequest;
+
+typedef struct {
+  uint32_t term;
+  uint8_t vote_granted; // 1 if granted, 0 if denied
+} VoteResponse;
+
+typedef struct {
+  uint32_t term;
+  uint32_t leader_id;
+  // Log entries would go here
+} AppendEntries;
+
+typedef struct {
   uint32_t sender_id;
   uint32_t term;
   uint8_t type;

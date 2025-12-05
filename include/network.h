@@ -6,6 +6,7 @@
 
 #define BASE_PORT 8000
 #define MAX_PEERS 10
+#define NUM_NODES 5
 
 int setup_server(int port);
 
