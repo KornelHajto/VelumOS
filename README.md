@@ -2,6 +2,7 @@
 
 > **A lightweight, leaderless mesh network simulation for resource-constrained clusters.**
 
+<img width="1542" height="961" alt="image" src="https://github.com/user-attachments/assets/a7d4578a-2928-4aba-ad85-49b04dc640d0" />
 
 ---
 
