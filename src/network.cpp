@@ -1,12 +1,12 @@
 #include "../include/network.h"
 #include <arpa/inet.h>
-#include <asm-generic/socket.h>
+#include <cstdio>
+#include <cstdlib>
 #include <netinet/in.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include <sys/socket.h>
 #include <unistd.h>
+
+namespace velum {
 
 int setup_server(int port) {
   int server_fd;
@@ -19,7 +19,7 @@ int setup_server(int port) {
   }
 
   if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt))) {
-    perror("[ERROR] Setting soccket options failed.");
+    perror("[ERROR] Setting socket options failed.");
     exit(EXIT_FAILURE);
   }
 
@@ -38,9 +38,9 @@ int setup_server(int port) {
   }
 
   return server_fd;
-};
+}
 
-int connect_to_peer(int peer_id, char *ip) {
+int connect_to_peer(int peer_id, const char *ip) {
   int sock = 0;
   struct sockaddr_in serv_addr;
 
@@ -61,8 +61,10 @@ int connect_to_peer(int peer_id, char *ip) {
   }
 
   return sock;
-};
+}
 
 void send_message(int socket_fd, Message *msg) {
   send(socket_fd, msg, sizeof(Message), 0);
-};
+}
+
+} // namespace velum
