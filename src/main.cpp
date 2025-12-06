@@ -12,6 +12,7 @@
 using namespace velum;
 
 void handle_message(int my_id, Message *msg);
+int find_best_node(int my_id);
 
 int main(int argc, char *argv[]) {
   if (argc != 2) {
@@ -112,11 +113,10 @@ int main(int argc, char *argv[]) {
 
       printf("[Sim] Broadcasting Status Report...\n");
 
-      // --- CREATE THE STATUS REPORT ---
       NodeStatus status;
-      status.cpu_load = rand() % 100;            // Random 0-99%
-      status.ram_free_kb = 100 + (rand() % 200); // Random 100-300 KB
-      status.task_queue_len = rand() % 10;       // Random tasks
+      status.cpu_load = rand() % 100;
+      status.ram_free_kb = 100 + (rand() % 200);
+      status.task_queue_len = rand() % 10;
 
       Message broadcast_msg;
       broadcast_msg.sender_id = my_id;
@@ -133,6 +133,14 @@ int main(int argc, char *argv[]) {
         if (inbound_sockets[i] > 0) {
           send_message(inbound_sockets[i], &broadcast_msg);
         }
+      }
+
+      int winner = find_best_node(my_id);
+      if (winner != -1) {
+        printf("[Sim] DECISION: The best node for a task is Node %d!\n",
+               winner);
+      } else {
+        printf("[Sim] DECISION: No suitable peers found yet.\n");
       }
     }
 
