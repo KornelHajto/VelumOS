@@ -14,8 +14,13 @@ enum class MsgType : uint8_t {
   TASK_RESULT
 };
 
-// structs for example adding two numbers;
-struct TaskRequest {
+enum class TaskOp : uint8_t { ADD, SUBTRACT, MULTIPLY, DIVIDE };
+
+struct TaskHeader {
+  TaskOp op_code;
+};
+
+struct MathArgs {
   int a;
   int b;
 };

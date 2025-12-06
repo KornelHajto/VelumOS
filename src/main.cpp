@@ -69,7 +69,8 @@ int main(int argc, char *argv[]) {
   long long last_heartbeat = current_timestamp();
   long long heartbeat_interval = 2000;
 
-  printf(">>> System Ready. Type 'add 10 20' to offload a task. <<<\n");
+  printf(
+      ">>> System Ready. Try: add 10 20, sub 50 10, mul 5 5, sub 10 2 <<<\n");
 
   while (1) {
     FD_ZERO(&readfds);
@@ -164,50 +165,68 @@ int main(int argc, char *argv[]) {
       if (nbytes > 0) {
         buffer[nbytes] = '\0';
 
+        char cmd[16];
         int a, b;
-        if (sscanf(buffer, "add %d %d", &a, &b) == 2) {
-          printf("[Cmd] User requested: %d + %d\n", a, b);
+        if (sscanf(buffer, "%s %d %d", cmd, &a, &b) == 3) {
 
-          int winner = find_best_node(my_id);
-          if (winner != -1) {
-            printf("[Sim] DECISION: Offloading task to Node %d!\n", winner);
+          TaskOp op;
+          bool valid = true;
+          if (strcmp(cmd, "add") == 0)
+            op = TaskOp::ADD;
+          else if (strcmp(cmd, "sub") == 0)
+            op = TaskOp::SUBTRACT;
+          else if (strcmp(cmd, "mul") == 0)
+            op = TaskOp::MULTIPLY;
+          else if (strcmp(cmd, "div") == 0) {
+            op = TaskOp::DIVIDE;
+          } else
+            valid = false;
 
-            TaskRequest task;
-            task.a = a;
-            task.b = b;
+          if (valid) {
+            printf("[Cmd] Requesting: %s %d %d\n", cmd, a, b);
 
-            Message task_msg;
-            task_msg.sender_id = my_id;
-            task_msg.type = MsgType::TASK_REQUEST;
-            std::memcpy(task_msg.payload, &task, sizeof(TaskRequest));
+            int winner = find_best_node(my_id);
+            if (winner != -1) {
+              printf("[Sim] DECISION: Offloading task to Node %d!\n", winner);
 
-            int target_socket = -1;
-            if (winner < MAX_PEERS && peer_sockets[winner] > 0) {
-              target_socket = peer_sockets[winner];
-            } else {
-              for (int i = 0; i < MAX_PEERS; i++) {
-                if (inbound_sockets[i] > 0 &&
-                    socket_to_id[inbound_sockets[i]] == winner) {
-                  target_socket = inbound_sockets[i];
-                  break;
+              TaskHeader header;
+              header.op_code = op;
+              MathArgs args;
+              args.a = a;
+              args.b = b;
+
+              Message task_msg;
+              task_msg.sender_id = my_id;
+              task_msg.type = MsgType::TASK_REQUEST;
+
+              std::memcpy(task_msg.payload, &header, sizeof(TaskHeader));
+              std::memcpy(task_msg.payload + sizeof(TaskHeader), &args,
+                          sizeof(MathArgs));
+
+              int target_socket = -1;
+              if (winner < MAX_PEERS && peer_sockets[winner] > 0) {
+                target_socket = peer_sockets[winner];
+              } else {
+                for (int i = 0; i < MAX_PEERS; i++) {
+                  if (inbound_sockets[i] > 0 &&
+                      socket_to_id[inbound_sockets[i]] == winner) {
+                    target_socket = inbound_sockets[i];
+                    break;
+                  }
                 }
               }
-            }
 
-            if (target_socket != -1) {
-              send_message(target_socket, &task_msg);
-              printf("[Sim] Sent Task to Node %d\n", winner);
+              if (target_socket != -1) {
+                send_message(target_socket, &task_msg);
+                printf("[Sim] Sent Task to Node %d\n", winner);
+              } else {
+                printf("[Error] Lost connection to Node %d\n", winner);
+              }
             } else {
-              printf("[Error] Lost connection to Node %d\n", winner);
+              printf("[Sim] No suitable peers available yet.\n");
             }
-
           } else {
-            printf("[Sim] No suitable peers available yet.\n");
-          }
-
-        } else {
-          if (nbytes > 1) {
-            printf("[Cmd] Unknown command. Try: add 10 20\n");
+            printf("[Cmd] Unknown operation. Use: add, sub, mul\n");
           }
         }
       }

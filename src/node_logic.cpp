@@ -7,43 +7,63 @@ using namespace velum;
 
 NodeStatus cluster_status[MAX_PEERS + 1];
 
+int process_task(const uint8_t *payload) {
+  const TaskHeader *header = (const TaskHeader *)payload;
+  const MathArgs *args = (const MathArgs *)(payload + sizeof(TaskHeader));
+
+  int result = 0;
+  switch (header->op_code) {
+  case TaskOp::ADD:
+    printf("[Task] Executing ADD: %d + %d\n", args->a, args->b);
+    result = args->a + args->b;
+    break;
+  case TaskOp::SUBTRACT:
+    printf("[Task] Executing SUB: %d - %d\n", args->a, args->b);
+    result = args->a - args->b;
+    break;
+  case TaskOp::MULTIPLY:
+    printf("[Task] Executing MUL: %d * %d\n", args->a, args->b);
+    result = args->a * args->b;
+    break;
+  case TaskOp::DIVIDE:
+    printf("[Task] Executing MUL: %d * %d\n", args->a, args->b);
+    result = args->a / args->b;
+    break;
+  default:
+    break;
+  }
+  return result;
+}
+
 void handle_message(int my_id, Message *msg, int src_socket) {
   switch (msg->type) {
   case MsgType::STATUS_REPORT: {
     if (msg->sender_id <= MAX_PEERS) {
       std::memcpy(&cluster_status[msg->sender_id], msg->payload,
                   sizeof(NodeStatus));
-      int score = cluster_status[msg->sender_id].calculate_score();
-      // printf("[Node %d] Updated Node %d status (Score: %d)\n", my_id,
-      //        msg->sender_id, score);
-      // removed loggin because terminal log flooding
     }
     break;
   }
 
   case MsgType::HEARTBEAT:
-    // printf("[Node %d] HEARTBEAT from Node %d\n", my_id, msg->sender_id);
-    // same reason here
     break;
 
   case MsgType::TASK_REQUEST: {
-    TaskRequest task;
-    std::memcpy(&task, msg->payload, sizeof(TaskRequest));
-    printf("[Task] Received Request from Node %d: %d + %d\n", msg->sender_id,
-           task.a, task.b);
+    printf("[Task] Received Task Request from Node %d\n", msg->sender_id);
 
-    int sum = task.a + task.b;
+    int math_result = process_task(msg->payload);
 
-    TaskResult result;
-    result.result = sum;
+    TaskResult res_struct;
+    res_struct.result = math_result;
 
-    Message reply_msg;
-    reply_msg.sender_id = my_id;
-    reply_msg.type = MsgType::TASK_RESULT;
-    std::memcpy(reply_msg.payload, &result, sizeof(TaskResult));
+    Message reply;
+    reply.sender_id = my_id;
+    reply.type = MsgType::TASK_RESULT;
+    std::memcpy(reply.payload, &res_struct, sizeof(TaskResult));
 
-    send_message(src_socket, &reply_msg);
-    printf("[Task] Sent Result %d back to Node %d\n", sum, msg->sender_id);
+    send_message(src_socket, &reply);
+    printf("[Task] Sent Result %d back to Node %d\n", math_result,
+           msg->sender_id);
     break;
   }
 
