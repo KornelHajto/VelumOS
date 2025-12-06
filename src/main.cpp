@@ -13,11 +13,18 @@ using namespace velum;
 
 void handle_message(int my_id, Message *msg);
 int find_best_node(int my_id);
+void handle_disconnect(int node_id);
+
+int socket_to_id[1024];
 
 int main(int argc, char *argv[]) {
   if (argc != 2) {
-    printf("Usage: %s <Node ID (1-3)>\n", argv[0]);
+    printf("Usage: %s <Node ID (1-%d)>\n", argv[0], MAX_PEERS - 1);
     return 1;
+  }
+
+  for (int i = 0; i < 1024; i++) {
+    socket_to_id[i] = -1;
   }
 
   int my_id = atoi(argv[1]);
@@ -34,7 +41,7 @@ int main(int argc, char *argv[]) {
   int server_fd = setup_server(my_port);
   printf("Node %d listening on port %d...\n", my_id, my_port);
 
-  for (int i = 1; i <= 3; i++) {
+  for (int i = 1; i < MAX_PEERS; i++) {
     if (i == my_id)
       continue;
 
@@ -42,6 +49,7 @@ int main(int argc, char *argv[]) {
     if (sock > 0) {
       printf("[Net] Connected to Node %d (Outbound)\n", i);
       peer_sockets[i] = sock;
+      socket_to_id[sock] = i;
     }
   }
 
@@ -151,8 +159,13 @@ int main(int argc, char *argv[]) {
         if (valread == 0) {
           close(sd);
           peer_sockets[i] = 0;
+
+          handle_disconnect(i);
+          socket_to_id[sd] = -1;
+
           printf("[Net] Node %d disconnected\n", i);
         } else {
+          socket_to_id[sd] = msg_buffer.sender_id;
           handle_message(my_id, &msg_buffer);
         }
       }
@@ -163,10 +176,20 @@ int main(int argc, char *argv[]) {
       if (sd > 0 && FD_ISSET(sd, &readfds)) {
         int valread = read(sd, &msg_buffer, sizeof(Message));
         if (valread == 0) {
+          int who_was_it = socket_to_id[sd];
+
           close(sd);
           inbound_sockets[i] = 0;
-          printf("[Net] Inbound neighbor disconnected\n");
+          socket_to_id[sd] = -1;
+
+          if (who_was_it != -1) {
+            handle_disconnect(who_was_it);
+            printf("[Net] Inbound Node %d disconnected\n", who_was_it);
+          } else {
+            printf("[Net] Unknown Inbound disconnected\n");
+          }
         } else {
+          socket_to_id[sd] = msg_buffer.sender_id;
           handle_message(my_id, &msg_buffer);
         }
       }

@@ -56,3 +56,10 @@ int find_best_node(int my_id) {
   }
   return best_node_id;
 }
+
+void handle_disconnect(int node_id) {
+  if (node_id > 0 && node_id <= MAX_PEERS) {
+    std::memset(&cluster_status[node_id], 0, sizeof(NodeStatus));
+    printf("[Logic] Cleared status for Node %d (Disconnected)\n", node_id);
+  }
+}
