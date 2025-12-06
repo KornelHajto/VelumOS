@@ -1,9 +1,9 @@
-CC = gcc
+CC = g++
 CFLAGS = -Wall -Iinclude
 
 TARGET = node
 
-SRCS = src/main.c src/network.c src/raft.c
+SRCS = src/main.cpp src/network.cpp src/node_logic.cpp
 
 OBJS = $(SRCS:.c=.o)
 

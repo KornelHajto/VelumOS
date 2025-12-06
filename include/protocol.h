@@ -1,43 +1,59 @@
 #ifndef PROTOCOL_H
 #define PROTOCOL_H
 
-#include <stdint.h>
-
+#include <cstdint>
 #pragma pack(push, 1)
 
-typedef enum {
-  MSG_HEARTBEAT,
-  MSG_VOTE_REQUEST,
-  MSG_VOTE_ACK,
-  MSG_DATA
-} MsgType;
+namespace velum {
 
-typedef struct {
-  uint32_t term;
-  uint32_t candidate_id;
-  uint32_t last_log_index;
-  uint32_t last_log_term;
-} VoteRequest;
+enum class MsgType : uint8_t {
+  HEARTBEAT,
+  STATUS_REPORT,
+  DATA,
+  TASK_REQUEST,
+  TASK_RESULT
+};
 
-typedef struct {
-  uint32_t term;
-  uint8_t vote_granted; // 1 if granted, 0 if denied
-} VoteResponse;
+enum class TaskOp : uint8_t { ADD, SUBTRACT, MULTIPLY, DIVIDE };
 
-typedef struct {
-  uint32_t term;
-  uint32_t leader_id;
-  // Log entries would go here
-} AppendEntries;
+struct TaskHeader {
+  TaskOp op_code;
+};
 
-typedef struct {
-  uint32_t sender_id;
-  uint32_t term;
-  uint8_t type;
+struct MathArgs {
+  int a;
+  int b;
+};
+
+struct TaskResult {
+  int result;
+};
+
+struct NodeStatus {
+  uint8_t cpu_load;
+  uint16_t ram_free_kb;
+  uint8_t task_queue_len;
+
+  int calculate_score() const {
+    const int WEIGHT_CPU = 2;
+    const int WEIGHT_QUEUE = 10;
+    int score = ram_free_kb;
+
+    // basically first param must be ram becasuse on esp32 if out of ram, then
+    // the board reboots/crashes.
+    score -= (cpu_load * WEIGHT_CPU);
+    score -= (task_queue_len * WEIGHT_QUEUE);
+    return score;
+  }
+};
+
+struct Message {
+  uint16_t sender_id;
+  MsgType type;
   uint8_t payload[256];
+};
 
-} Message;
-
+} // namespace velum
 #pragma pack(pop)
 
 #endif // !PROTOCOL_H
