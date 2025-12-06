@@ -6,7 +6,23 @@
 
 namespace velum {
 
-enum class MsgType : uint8_t { HEARTBEAT, STATUS_REPORT, DATA };
+enum class MsgType : uint8_t {
+  HEARTBEAT,
+  STATUS_REPORT,
+  DATA,
+  TASK_REQUEST,
+  TASK_RESULT
+};
+
+// structs for example adding two numbers;
+struct TaskRequest {
+  int a;
+  int b;
+};
+
+struct TaskResult {
+  int result;
+};
 
 struct NodeStatus {
   uint8_t cpu_load;

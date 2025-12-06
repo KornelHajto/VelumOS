@@ -11,7 +11,7 @@
 
 using namespace velum;
 
-void handle_message(int my_id, Message *msg);
+void handle_message(int my_id, Message *msg, int src_socket);
 int find_best_node(int my_id);
 void handle_disconnect(int node_id);
 
@@ -145,8 +145,38 @@ int main(int argc, char *argv[]) {
 
       int winner = find_best_node(my_id);
       if (winner != -1) {
-        printf("[Sim] DECISION: The best node for a task is Node %d!\n",
-               winner);
+        printf("[Sim] DECISION: Offloading task to Node %d!\n", winner);
+
+        TaskRequest task;
+        task.a = rand() % 50;
+        task.b = rand() % 50;
+
+        Message task_msg;
+        task_msg.sender_id = my_id;
+        task_msg.type = MsgType::TASK_REQUEST;
+        std::memcpy(task_msg.payload, &task, sizeof(TaskRequest));
+
+        int target_socket = -1;
+        if (winner < MAX_PEERS && peer_sockets[winner] > 0) {
+          target_socket = peer_sockets[winner];
+        } else {
+          for (int i = 0; i < MAX_PEERS; i++) {
+            if (inbound_sockets[i] > 0 &&
+                socket_to_id[inbound_sockets[i]] == winner) {
+              target_socket = inbound_sockets[i];
+              break;
+            }
+          }
+        }
+
+        if (target_socket != -1) {
+          send_message(target_socket, &task_msg);
+          printf("[Sim] Sent Task (%d + %d) to Node %d\n", task.a, task.b,
+                 winner);
+        } else {
+          printf("[Error] Could not find socket for Winner Node %d\n", winner);
+        }
+
       } else {
         printf("[Sim] DECISION: No suitable peers found yet.\n");
       }
@@ -159,14 +189,12 @@ int main(int argc, char *argv[]) {
         if (valread == 0) {
           close(sd);
           peer_sockets[i] = 0;
-
           handle_disconnect(i);
           socket_to_id[sd] = -1;
-
           printf("[Net] Node %d disconnected\n", i);
         } else {
           socket_to_id[sd] = msg_buffer.sender_id;
-          handle_message(my_id, &msg_buffer);
+          handle_message(my_id, &msg_buffer, sd);
         }
       }
     }
@@ -177,7 +205,6 @@ int main(int argc, char *argv[]) {
         int valread = read(sd, &msg_buffer, sizeof(Message));
         if (valread == 0) {
           int who_was_it = socket_to_id[sd];
-
           close(sd);
           inbound_sockets[i] = 0;
           socket_to_id[sd] = -1;
@@ -190,7 +217,7 @@ int main(int argc, char *argv[]) {
           }
         } else {
           socket_to_id[sd] = msg_buffer.sender_id;
-          handle_message(my_id, &msg_buffer);
+          handle_message(my_id, &msg_buffer, sd);
         }
       }
     }
