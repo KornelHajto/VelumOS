@@ -1,9 +1,9 @@
 CC = g++
-CFLAGS = -Wall -Iinclude
+CFLAGS = -Wall -Iinclude -Icommon -Os -s
 
 TARGET = node
 
-SRCS = src/main.cpp src/network.cpp src/node_logic.cpp
+SRCS = src/main.cpp src/network.cpp common/node_logic.cpp
 
 OBJS = $(SRCS:.c=.o)
 

@@ -8,8 +8,8 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "../common/protocol.h"
 #include "../include/network.h"
-#include "../include/protocol.h"
 
 using namespace velum;
 

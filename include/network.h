@@ -1,7 +1,7 @@
 #ifndef NETWORK_H
 #define NETWORK_H
 
-#include "protocol.h"
+#include "../common/protocol.h"
 #include <cstdint>
 #include <netinet/in.h>
 

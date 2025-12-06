@@ -1,5 +1,5 @@
 #include "../include/network.h"
-#include "../include/protocol.h"
+#include "protocol.h"
 #include <cstdio>
 #include <cstring>
 
