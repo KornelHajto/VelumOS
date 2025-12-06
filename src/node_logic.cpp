@@ -14,14 +14,16 @@ void handle_message(int my_id, Message *msg, int src_socket) {
       std::memcpy(&cluster_status[msg->sender_id], msg->payload,
                   sizeof(NodeStatus));
       int score = cluster_status[msg->sender_id].calculate_score();
-      printf("[Node %d] Updated Node %d status (Score: %d)\n", my_id,
-             msg->sender_id, score);
+      // printf("[Node %d] Updated Node %d status (Score: %d)\n", my_id,
+      //        msg->sender_id, score);
+      // removed loggin because terminal log flooding
     }
     break;
   }
 
   case MsgType::HEARTBEAT:
-    printf("[Node %d] HEARTBEAT from Node %d\n", my_id, msg->sender_id);
+    // printf("[Node %d] HEARTBEAT from Node %d\n", my_id, msg->sender_id);
+    // same reason here
     break;
 
   case MsgType::TASK_REQUEST: {
