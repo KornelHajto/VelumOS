@@ -1,0 +1,11 @@
+Node 1 listening on port 8001...
+>>> System Ready. Try: pi 200000, prime 50000, add 10 20 <<<
+[Net] New neighbor connected (Socket 4)
+[Net] New neighbor connected (Socket 5)
+[Cmd] Created Job 1445: PI Calc (500000000 iters)
+[Sim] Offloading Job 1445 to Node 2
+[Sim] Sent Task to Node 2 (Backup saved)
+[CRASH] Node 2 disconnected unexpectedly!
+[Logic] Cleared status for Node 2 (Disconnected)
+[Recovery] Node 2 died with active job! Rescheduling...
+[Recovery] Re-assigning to Node 3
