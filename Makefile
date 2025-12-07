@@ -15,5 +15,11 @@ $(TARGET): $(OBJS)
 %.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
+test_bin: tests/unit_tests.cpp src/node_logic.cpp src/user_tasks.cpp
+	$(CXX) $(CXXFLAGS) -o run_tests tests/unit_tests.cpp src/node_logic.cpp src/user_tasks.cpp -lgtest -lgtest_main -pthread
+
+test: test_bin
+	./run_tests
+
 clean:
 	rm -f $(TARGET) src/*.o

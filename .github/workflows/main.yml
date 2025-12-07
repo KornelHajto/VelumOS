@@ -1,4 +1,4 @@
-name: Build VelumOS Simulator
+name: Build & Test VelumOS
 
 on:
   push:
@@ -7,22 +7,37 @@ on:
     branches: [ "main" ]
 
 jobs:
-  build:
+  build-and-test:
     runs-on: ubuntu-latest
 
     steps:
     - name: Checkout Code
       uses: actions/checkout@v4
 
-    - name: Install Dependencies
-      run: sudo apt-get update && sudo apt-get install -y build-essential
+    # 1. Install Dependencies & Build GoogleTest from Source
+    # (Ubuntu does not ship pre-compiled GTest libs for safety reasons)
+    - name: Install Dependencies & GTest
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential cmake libgtest-dev
+        cd /usr/src/gtest
+        sudo cmake .
+        sudo make
+        sudo cp lib/*.a /usr/lib
 
-    - name: Compile Project
+    # 2. Compile the Main Project
+    - name: Compile Simulator
       run: |
         make clean
         make
 
-    - name: Verify Build
+    # 3. Compile and Run Unit Tests
+    - name: Run Unit Tests
+      run: |
+        make test
+
+    # 4. Verify the Main Executable exists
+    - name: Verify Build Artifact
       run: |
         if [ -f "./node" ]; then
           echo "Build Successful! Executable 'node' created."
@@ -31,6 +46,7 @@ jobs:
           exit 1
         fi
 
+    # 5. Upload the Artifact (Only if tests passed)
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
