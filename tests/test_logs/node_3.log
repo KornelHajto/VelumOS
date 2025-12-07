@@ -1,8 +1,11 @@
 Node 3 listening on port 8003...
-[Net] Connected to Node 1 (Outbound)
-[Net] Connected to Node 2 (Outbound)
->>> System Ready. Try: pi 200000, prime 50000, add 10 20 <<<
-[CRASH] Node 2 disconnected unexpectedly!
-[Logic] Cleared status for Node 2 (Disconnected)
-[Job 1445] Received Task Request (Op Code: 2)
-   -> Executing PI CALC (500000000 iters)...
+>>> Ready. Checkpointing Enabled.
+🚨 [CRASH] Node 2 died! (Checking recovery...)
+❌ [Debug] Pending tasks map is missing Node 2!
+   [Debug] Map contents: (Empty)
+[Job 7480] Received Task (Op: 2). Processing...
+   -> [Job 7480] Checkpoint sent (50000000 done, 200000000 left)
+   -> [Job 7480] Checkpoint sent (50000000 done, 150000000 left)
+   -> [Job 7480] Checkpoint sent (50000000 done, 100000000 left)
+   -> [Job 7480] Checkpoint sent (50000000 done, 50000000 left)
+   -> [Job 7480] Final result sent.

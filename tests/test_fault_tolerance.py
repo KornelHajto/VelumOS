@@ -3,28 +3,28 @@ import time
 import os
 import signal
 import sys
+import threading
 
 # ==========================================
-# CONFIGURATION (Fixed with Absolute Paths)
+# CONFIGURATION
 # ==========================================
-# Get the absolute path of the folder containing this script (tests/)
 TESTS_DIR = os.path.dirname(os.path.abspath(__file__))
-
-# The project root is one level up from tests/
 PROJECT_ROOT = os.path.abspath(os.path.join(TESTS_DIR, ".."))
-
-# The binary is inside the project root
-NODE_BIN = os.path.join(PROJECT_ROOT, "node")
-
-# Log directory inside tests/
+NODE_BIN = f"{PROJECT_ROOT}/node"
 LOG_DIR = os.path.join(TESTS_DIR, "test_logs")
-NODES = {} 
+NODES = {}
+
+# ANSI Colors for readability
+COLORS = {
+    1: "\033[94m", # Blue (Controller)
+    2: "\033[92m", # Green (Worker 1)
+    3: "\033[93m", # Yellow (Worker 2)
+    "RESET": "\033[0m",
+    "BOLD": "\033[1m"
+}
 
 def setup():
-    """Compiles the project (running make in the root directory) and cleans logs."""
     print(f"🛠️  [Setup] Compiling C++ code in {PROJECT_ROOT}...")
-    
-    # Run make inside the project root
     result = subprocess.run(
         ["make", "clean", "&&", "make"], 
         cwd=PROJECT_ROOT, 
@@ -40,138 +40,140 @@ def setup():
     if not os.path.exists(LOG_DIR):
         os.makedirs(LOG_DIR)
         
-    # Clean up old processes
-    # We filter by the binary name "node" to ensure we kill the right processes
     subprocess.run(["pkill", "-f", "node"], stdout=subprocess.DEVNULL)
 
-def start_node(node_id):
-    """Starts a node process."""
-    log_file = open(f"{LOG_DIR}/node_{node_id}.log", "w")
+# --- REAL TIME LOGGER ---
+def monitor_output(node_id, proc):
+    """Reads stdout from a node, prints it to console, and saves to file."""
+    log_file_path = f"{LOG_DIR}/node_{node_id}.log"
     
-    # Check if binary exists
+    # Open file in append mode (or write mode)
+    with open(log_file_path, "w") as f:
+        # Read line by line until process ends
+        for line in iter(proc.stdout.readline, ''):
+            clean_line = line.strip()
+            if clean_line:
+                # 1. Print to Terminal with Color
+                c = COLORS.get(node_id, "\033[97m")
+                r = COLORS["RESET"]
+                print(f"{c}[Node {node_id}] {clean_line}{r}")
+                
+                # 2. Save to File (for the test logic)
+                f.write(line)
+                f.flush()
+
+def start_node(node_id):
     if not os.path.isfile(NODE_BIN):
         print(f"❌ Error: Binary not found at {NODE_BIN}")
-        print(f"   (Did compilation fail?)")
         sys.exit(1)
 
+    # Note: We pipe stdout so we can intercept it in Python
     proc = subprocess.Popen(
         [NODE_BIN, str(node_id)],
         stdin=subprocess.PIPE,
-        stdout=log_file,
-        stderr=log_file,
+        stdout=subprocess.PIPE,   # Catch output
+        stderr=subprocess.STDOUT, # Merge errors into stdout
         text=True,
         bufsize=0,
-        cwd=PROJECT_ROOT # Run inside root so it behaves normally
+        cwd=PROJECT_ROOT 
     )
     NODES[node_id] = proc
-    print(f"🚀 [Launch] Node {node_id} started (PID: {proc.pid})")
+    
+    # Start a background thread to read/print output
+    t = threading.Thread(target=monitor_output, args=(node_id, proc))
+    t.daemon = True # Kill thread when main program exits
+    t.start()
+    
+    # Small sleep to let the start message print cleanly
+    time.sleep(0.1)
 
 def send_command(node_id, command):
-    """Writes a command to the node's stdin."""
     if node_id in NODES:
-        print(f"📨 [Action] Sending '{command}' to Node {node_id}...")
+        print(f"\n📨 [Test] Sending '{command}' to Node {node_id}...")
         try:
             NODES[node_id].stdin.write(command + "\n")
             NODES[node_id].stdin.flush()
         except OSError:
-            print(f"⚠️  [Error] Could not write to Node {node_id} (Process dead?)")
+            pass
 
 def kill_node(node_id):
-    """Simulates a crash."""
     if node_id in NODES:
-        print(f"💥 [Chaos] KILLING Node {node_id} now!")
+        print(f"\n💥 [Chaos] KILLING Node {node_id} now!")
         NODES[node_id].terminate()
         NODES[node_id].wait()
         del NODES[node_id]
 
 def check_log(node_id, keyword):
-    """Checks if a keyword exists in the node's log file."""
+    """Checks the log file for specific keywords."""
     log_path = f"{LOG_DIR}/node_{node_id}.log"
-    if not os.path.exists(log_path):
-        return False
-        
+    if not os.path.exists(log_path): return False
+    
+    # We read the file because the thread writes to it
     with open(log_path, "r") as f:
         return keyword in f.read()
 
 def cleanup():
-    """Stops all nodes."""
-    print("\n🧹 [Cleanup] Stopping cluster...")
+    print(f"\n{COLORS['BOLD']}🧹 [Cleanup] Stopping cluster...{COLORS['RESET']}")
     for pid in NODES.values():
         pid.terminate()
-    # Kill any remaining instances forcefully
     subprocess.run(["pkill", "-f", "node"], stdout=subprocess.DEVNULL)
 
 def run_test():
     try:
         setup()
 
-        # 1. Launch Cluster
-        start_node(1) # Controller
-        start_node(2) # Victim Worker
-        start_node(3) # Backup Worker
+        start_node(1) 
+        start_node(2) 
+        start_node(3) 
         
-        print("⏳ [Sync] Waiting 3s for mesh discovery...")
+        print(f"\n{COLORS['BOLD']}⏳ [Sync] Waiting 3s for mesh discovery...{COLORS['RESET']}")
         time.sleep(3)
 
-        # 2. Inject Heavy Task
-        send_command(1, "pi 500000000") 
+        # Inject Task
+        send_command(1, "pi 300000000") 
 
-        # 3. Wait for assignment
-        time.sleep(1)
+        print(f"\n{COLORS['BOLD']}👀 [Monitor] Watching logs to identify the worker...{COLORS['RESET']}")
         
-        # 4. Identify the Victim
         victim_id = None
-        if check_log(2, "Executing PI"): victim_id = 2
-        elif check_log(3, "Executing PI"): victim_id = 3
+        # Poll logs until we see who got the job
+        for _ in range(20):
+            if check_log(2, "Received Task"): victim_id = 2; break
+            if check_log(3, "Received Task"): victim_id = 3; break
+            time.sleep(0.2)
         
         if not victim_id:
-            print("❌ [Fail] Task didn't start. System too slow or busy.")
+            print("❌ [Fail] Task didn't start in time.")
             return
 
-        print(f"👀 [Monitor] Task detected running on Node {victim_id}")
+        # Let it run for a second so we see some progress bars
+        time.sleep(1.5)
 
-        # 5. KILL THE VICTIM
         kill_node(victim_id)
 
-        # 6. Wait for Recovery
-        print("🚑 [Recovery] Waiting for Node 1 to detect and reschedule...")
-        time.sleep(4)
+        print(f"\n{COLORS['BOLD']}🚑 [Recovery] Waiting 10s for Node 1 to reschedule and finish...{COLORS['RESET']}")
+        time.sleep(10) 
 
-        # 7. Analyze Results
-        print("\n" + "="*40)
-        print("       FAULT TOLERANCE REPORT")
-        print("="*40)
-
-        pass_count = 0
+        print("\n" + "="*40 + "\n       FAULT TOLERANCE REPORT\n" + "="*40)
         
-        if check_log(1, "disconnected unexpectedly"):
-            print("✅ PASS: Controller detected the crash.")
-            pass_count += 1
-        else:
-            print("❌ FAIL: Controller missed the disconnect event.")
+        passes = 0
+        if check_log(1, "died!"): 
+            print("✅ PASS: Crash detected."); passes += 1
+        else: print("❌ FAIL: Crash NOT detected.")
 
-        if check_log(1, "Rescheduling"):
-            print("✅ PASS: Controller triggered reschedule logic.")
-            pass_count += 1
-        else:
-            print("❌ FAIL: No reschedule attempt found.")
+        if check_log(1, "Rescheduling"): 
+            print("✅ PASS: Reschedule triggered."); passes += 1
+        else: print("❌ FAIL: No reschedule attempt.")
 
-        if check_log(1, "COMPLETE"):
-            print("🏆 PASS: Task successfully completed!")
-            pass_count += 1
-        else:
-            print("❌ FAIL: Task result never received.")
+        if check_log(1, "FINAL SUCCESS"): 
+            print("🏆 PASS: Task completed!"); passes += 1
+        else: print("❌ FAIL: Result never received.")
 
         print("-" * 40)
-        if pass_count == 3:
-            print("✨ SYSTEM IS FAULT TOLERANT ✨")
-        else:
-            print("⚠️  SYSTEM FAILED RECOVERY TEST")
+        if passes == 3: print(f"{COLORS['BOLD']}✨ SYSTEM IS FAULT TOLERANT ✨{COLORS['RESET']}")
+        else: print("⚠️  SYSTEM FAILED RECOVERY TEST")
 
-    except KeyboardInterrupt:
-        print("\nTest Aborted.")
-    finally:
-        cleanup()
+    except KeyboardInterrupt: pass
+    finally: cleanup()
 
 if __name__ == "__main__":
     run_test()

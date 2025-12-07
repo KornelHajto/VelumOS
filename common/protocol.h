@@ -11,7 +11,8 @@ enum class MsgType : uint8_t {
   STATUS_REPORT,
   DATA,
   TASK_REQUEST,
-  TASK_RESULT
+  TASK_RESULT,
+  TASK_PROGRESS
 };
 
 enum class TaskOp : uint8_t { MATH_ADD, MATH_SUB, COMPUTE_PI, FIND_PRIMES };

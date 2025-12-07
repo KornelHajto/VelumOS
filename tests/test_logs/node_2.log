@@ -1,6 +1,4 @@
 Node 2 listening on port 8002...
-[Net] Connected to Node 1 (Outbound)
->>> System Ready. Try: pi 200000, prime 50000, add 10 20 <<<
-[Net] New neighbor connected (Socket 5)
-[Job 1445] Received Task Request (Op Code: 2)
-   -> Executing PI CALC (500000000 iters)...
+>>> Ready. Checkpointing Enabled.
+[Job 7480] Received Task (Op: 2). Processing...
+   -> [Job 7480] Checkpoint sent (50000000 done, 250000000 left)

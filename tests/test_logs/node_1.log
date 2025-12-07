@@ -1,11 +1,16 @@
 Node 1 listening on port 8001...
->>> System Ready. Try: pi 200000, prime 50000, add 10 20 <<<
-[Net] New neighbor connected (Socket 4)
-[Net] New neighbor connected (Socket 5)
-[Cmd] Created Job 1445: PI Calc (500000000 iters)
-[Sim] Offloading Job 1445 to Node 2
-[Sim] Sent Task to Node 2 (Backup saved)
-[CRASH] Node 2 disconnected unexpectedly!
-[Logic] Cleared status for Node 2 (Disconnected)
-[Recovery] Node 2 died with active job! Rescheduling...
-[Recovery] Re-assigning to Node 3
+>>> Ready. Checkpointing Enabled.
+[Cmd] Job 7480 Started: Pi 300000000 iterations
+[Sim] Sent Job 7480 to Node 2
+📊 [Job 7480] Progress: 50000000 / 300000000 (+50000000 from Node 2)
+🚨 [CRASH] Node 2 died! (Checking recovery...)
+✅ [Debug] Found pending task for Node 2 in map.
+⚠️ [Recovery] Job 7480 interrupted. Recovered progress: 50000000 done.
+♻️ [Resume] Rescheduling remaining 250000000 iterations...
+   -> Sent to Node 3
+📊 [Job 7480] Progress: 100000000 / 300000000 (+50000000 from Node 3)
+📊 [Job 7480] Progress: 150000000 / 300000000 (+50000000 from Node 3)
+📊 [Job 7480] Progress: 200000000 / 300000000 (+50000000 from Node 3)
+📊 [Job 7480] Progress: 250000000 / 300000000 (+50000000 from Node 3)
+📊 [Job 7480] Progress: 300000000 / 300000000 (+50000000 from Node 3)
+✅ [Job 7480] FINAL SUCCESS! PI = 3.141617
