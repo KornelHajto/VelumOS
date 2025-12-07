@@ -14,10 +14,11 @@ enum class MsgType : uint8_t {
   TASK_RESULT
 };
 
-enum class TaskOp : uint8_t { ADD, SUBTRACT, MULTIPLY, DIVIDE };
+enum class TaskOp : uint8_t { MATH_ADD, MATH_SUB, COMPUTE_PI, FIND_PRIMES };
 
 struct TaskHeader {
   TaskOp op_code;
+  uint32_t job_id;
 };
 
 struct MathArgs {
@@ -25,8 +26,14 @@ struct MathArgs {
   int b;
 };
 
+struct ComputeArgs {
+  uint32_t iterations;
+};
+
 struct TaskResult {
-  int result;
+  uint32_t job_id;
+  int32_t value;
+  uint32_t count;
 };
 
 struct NodeStatus {
@@ -38,9 +45,6 @@ struct NodeStatus {
     const int WEIGHT_CPU = 2;
     const int WEIGHT_QUEUE = 10;
     int score = ram_free_kb;
-
-    // basically first param must be ram becasuse on esp32 if out of ram, then
-    // the board reboots/crashes.
     score -= (cpu_load * WEIGHT_CPU);
     score -= (task_queue_len * WEIGHT_QUEUE);
     return score;
@@ -50,7 +54,7 @@ struct NodeStatus {
 struct Message {
   uint16_t sender_id;
   MsgType type;
-  uint8_t payload[256];
+  uint8_t payload[256]; // Generic buffer (Enough for our structs)
 };
 
 } // namespace velum

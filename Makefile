@@ -3,7 +3,7 @@ CFLAGS = -Wall -Iinclude -Icommon -Os -s
 
 TARGET = node
 
-SRCS = src/main.cpp src/network.cpp common/node_logic.cpp
+SRCS = src/main.cpp src/network.cpp common/node_logic.cpp src/user_tasks.cpp
 
 OBJS = $(SRCS:.c=.o)
 
