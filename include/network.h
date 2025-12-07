@@ -8,7 +8,7 @@
 namespace velum {
 
 constexpr int BASE_PORT = 8000;
-constexpr int MAX_PEERS = 10;
+constexpr int MAX_PEERS = 16;
 
 int setup_server(int port);
 

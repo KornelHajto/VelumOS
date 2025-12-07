@@ -1,0 +1,8 @@
+[VelumOS] Initialized Node 5 on Port 8005
+>>> User App Ready. Type 'pi <amount>' to scatter work.
+[VelumOS] Kernel Started. Mesh Active.
+[Job 9431] Received Task (Op: 2). Processing...
+   -> [Job 9431] Checkpoint sent (50000000 done, 150000000 left)
+   -> [Job 9431] Checkpoint sent (50000000 done, 100000000 left)
+   -> [Job 9431] Checkpoint sent (50000000 done, 50000000 left)
+   -> [Job 9431] Final result sent.

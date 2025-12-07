@@ -1,0 +1,15 @@
+[VelumOS] Initialized Node 1 on Port 8001
+>>> User App Ready. Type 'pi <amount>' to scatter work.
+[VelumOS] Kernel Started. Mesh Active.
+[VelumOS] Scattering Job 9431: 2000000000 items across 10 workers...
+   -> Sent chunk (200000000) to Node 2
+   -> Sent chunk (200000000) to Node 3
+   -> Sent chunk (200000000) to Node 4
+   -> Sent chunk (200000000) to Node 5
+   -> Sent chunk (200000000) to Node 6
+   -> Sent chunk (200000000) to Node 7
+   -> Sent chunk (200000000) to Node 8
+   -> Sent chunk (200000000) to Node 9
+   -> Sent chunk (200000000) to Node 10
+   -> Sent chunk (200000000) to Node 11
+✅ [Callback] Job 9431 FINISHED! PI = 3.141559

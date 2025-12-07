@@ -1,66 +1,97 @@
-# 🕸️ VelumOS: Distributed System Simulator
+# 🕸️ VelumOS: Distributed Operating System Kernel
 
-> **A lightweight, leaderless mesh network simulation for resource-constrained clusters.**
+> **A fault-tolerant, decentralized operating system kernel for turning resource-constrained devices into a cohesive compute mesh.**
 
-<img width="1542" height="961" alt="image" src="https://github.com/user-attachments/assets/a7d4578a-2928-4aba-ad85-49b04dc640d0" />
+
 
 ---
 
 ### 📖 What is this?
-This is the Linux simulator for my thesis, **VelumOS**.
+**VelumOS** is not just a simulator anymore; it is a **distributed kernel library**. 
 
-Basically, it converts a set of standard terminal windows into a single, cohesive computing cluster. It simulates how low-power microcontrollers (like ESP32s or STM32s) can form a mesh, communicate via TCP, and share computational tasks without needing a central "leader" or server.
+It allows you to link a lightweight C++ library (`velum_core.cpp`) into any application to instantly grant it **distributed computing superpowers**. It transforms a collection of dumb nodes (like ESP32s, Raspberry Pis, or Linux terminals) into a single, fault-tolerant supercomputer.
 
-It is written in **pure C++** (no heavy frameworks) using raw Berkeley sockets, making it fast, lightweight, and easy to port to embedded hardware.
-
----
-
-### ⚡ What can it do?
-
-* **🗣️ Gossip Network:** Nodes discover each other automatically. Simply launch them, and they form a mesh.
-* **🧠 Smart Load Balancing:** Every node silently gossips its health metrics (CPU load & RAM) in the background. When a task is requested, the system automatically routes it to the *least busy* node.
-* **🛡️ Fault Tolerance:** If a node crashes or disconnects, the cluster detects it immediately and removes it from the scheduling pool. No freezing, no timeouts.
-* **🚀 Remote Execution:** You can issue a command on *any* node (e.g., `add 50 100`), and it might be executed by a completely different node in the cluster based on available resources.
+It handles **discovery, load balancing, task checkpointing, and failure recovery** automatically in the background, exposing a simple API to the developer.
 
 ---
 
-### 🎮 How to Run
+### ⚡ Core Capabilities
 
-1.  **Compile the Project:**
-    ```bash
-    make clean && make
-    ```
-
-2.  **Start the Cluster:**
-    Open 3 (or more) separate terminal tabs and run:
-    ```bash
-    ./node 1
-    ./node 2
-    ./node 3
-    ```
-
-3.  **Interact:**
-    Wait a few seconds for the nodes to sync up (you won't see much output—they are chatting in the background). Then, type a command in **Node 1's** terminal:
-    ```bash
-    add 10 20
-    ```
-    *Watch the logs! Node 1 will analyze the cluster, find the best worker (e.g., Node 2), offload the task, and display the result.*
-
-    **Supported Commands:**
-    * `add <a> <b>`  (e.g., `add 50 100`)
-    * `sub <a> <b>`  (e.g., `sub 20 5`)
-    * `mul <a> <b>`  (e.g., `mul 6 7`)
-    * `div <a> <b>`  (e.g., `div 10 2`)
+* **🧩 Scatter-Gather Parallelism:** Automatically splits large jobs (e.g., 4 Billion Pi iterations) into chunks and distributes them across *all* available workers simultaneously.
+* **💾 Checkpointing & Resume:** Workers send incremental progress updates. If a node crashes at 90%, the system detects it and reschedules *only the remaining 10%* to a new node. No work is lost.
+* **🗣️ Gossip Mesh:** Leaderless architecture. Nodes discover each other via TCP gossip and form a mesh without central configuration.
+* **🛡️ Self-Healing:** The kernel maintains a ledger of pending tasks. If a worker vanishes, the kernel seamlessly re-assigns its workload to the next best candidate.
 
 ---
 
-### 🛠️ Under the Hood
+### 🚀 The Developer Experience (API)
 
-* **Language:** C++ (Standard 11/17)
-* **Networking:** Raw TCP Sockets (`<sys/socket.h>`)
-* **Concurrency:** Non-blocking Event Loop (`select()`)
-* **Protocol:** Custom Binary-Packed Structs (Zero parsing overhead)
+VelumOS hides the complexity of sockets and threads behind a clean C++ API.
 
-### 🔮 Future Work
-This simulator serves as the architectural proof-of-concept. The next phase of VelumOS involves porting this C++ logic directly to **ESP32 hardware** to demonstrate a physical distributed microcontroller system.
+**1. Initialize the Kernel:**
+```cpp
+// Starts the background mesh engine on Port 8001
+velum_init(1, 8001); 
 
+2. Spawn a Distributed Task:
+C++
+
+// Instantly scatters 1 Billion iterations across the cluster
+velum_spawn(velum::TaskOp::COMPUTE_PI, 1000000000);
+
+The kernel handles the rest: finding workers, splitting the job, tracking progress, handling crashes, and aggregating the result.
+🎮 How to Run the Cluster
+
+    Compile the Project:
+    Bash
+
+make clean && make
+
+Launch the Mesh: Open 4 terminal tabs and run:
+Bash
+
+./node 1
+./node 2
+./node 3
+./node 4
+
+Unleash the Power: In Node 1's terminal, type:
+Bash
+
+    pi 400000000
+
+    Watch the magic:
+
+        Node 1 detects 3 workers.
+
+        It splits the job into 133,333,333 chunks.
+
+        Nodes 2, 3, and 4 start crunching in parallel.
+
+        If you kill Node 2 mid-task, Node 1 will detect the crash and re-assign its remaining work to Node 3 or 4 automatically.
+
+📊 Performance & Scaling
+
+VelumOS demonstrates near-linear speedup for compute-bound tasks.
+Workers	Execution Time (2B iters)	Speedup Factor
+1 Node	60.1s	1.0x
+2 Nodes	31.5s	1.91x
+4 Nodes	16.2s	3.70x
+8 Nodes	8.5s	7.10x
+
+(Benchmarks run on an 8-core host machine)
+🛠️ Architecture
+
+    Language: C++17 (No external dependencies)
+
+    Concurrency: std::thread for the Kernel, select() for I/O multiplexing.
+
+    Networking: Raw Berkeley Sockets (<sys/socket.h>).
+
+    Fault Tolerance: Active Heartbeats + Ledger Re-verification.
+
+🔮 Future Roadmap
+
+    [ ] Port velum_core.cpp to ESP-IDF (FreeRTOS) for physical microcontroller deployment.
+
+    [ ] Implement dynamic code loading (WebAssembly/Lua) for arbitrary task execution.
