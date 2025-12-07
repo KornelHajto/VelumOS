@@ -1,6 +1,6 @@
-# 🕸️ VelumOS: Distributed Operating System Kernel
+# 🕸️ VelumOS: Distributed Operating System Overlay Kernel
 
-> **A fault-tolerant, decentralized operating system kernel for turning resource-constrained devices into a cohesive compute mesh.**
+> **A fault-tolerant, decentralized operating system overlay kernel for turning resource-constrained devices into a cohesive compute mesh.**
 
 
 
@@ -28,70 +28,75 @@ It handles **discovery, load balancing, task checkpointing, and failure recovery
 
 VelumOS hides the complexity of sockets and threads behind a clean C++ API.
 
-**1. Initialize the Kernel:**
+**1. Initialize the overlay Kernel:**
 ```cpp
 // Starts the background mesh engine on Port 8001
 velum_init(1, 8001); 
-
+```
 2. Spawn a Distributed Task:
-C++
+```cpp
 
 // Instantly scatters 1 Billion iterations across the cluster
 velum_spawn(velum::TaskOp::COMPUTE_PI, 1000000000);
-
+```
 The kernel handles the rest: finding workers, splitting the job, tracking progress, handling crashes, and aggregating the result.
 🎮 How to Run the Cluster
 
-    Compile the Project:
-    Bash
+Compile the Project:
+```sh
 
 make clean && make
-
+```
 Launch the Mesh: Open 4 terminal tabs and run:
-Bash
+```sh
 
 ./node 1
 ./node 2
 ./node 3
 ./node 4
-
+```
 Unleash the Power: In Node 1's terminal, type:
-Bash
+```sh
 
     pi 400000000
+```
+Watch the magic:
 
-    Watch the magic:
+  Node 1 detects 3 workers.
 
-        Node 1 detects 3 workers.
+  It splits the job into 133,333,333 chunks.
 
-        It splits the job into 133,333,333 chunks.
+   Nodes 2, 3, and 4 start crunching in parallel.
 
-        Nodes 2, 3, and 4 start crunching in parallel.
-
-        If you kill Node 2 mid-task, Node 1 will detect the crash and re-assign its remaining work to Node 3 or 4 automatically.
+   If you kill Node 2 mid-task, Node 1 will detect the crash and re-assign its remaining work to Node 3 or 4 automatically.
 
 📊 Performance & Scaling
 
 VelumOS demonstrates near-linear speedup for compute-bound tasks.
-Workers	Execution Time (2B iters)	Speedup Factor
-1 Node	60.1s	1.0x
-2 Nodes	31.5s	1.91x
-4 Nodes	16.2s	3.70x
-8 Nodes	8.5s	7.10x
+| Workers | Execution Time (2B iters) | Speedup Factor |
+| :--- | :--- | :--- |
+| **1 Node** | 60.1s | 1.0x |
+| **2 Nodes** | 31.5s | 1.91x |
+| **4 Nodes** | 16.2s | 3.70x |
+| **8 Nodes** | 8.5s | 7.10x |
+
+<img width="1000" height="800" alt="benchmark" src="https://github.com/user-attachments/assets/94caa80c-ba5f-4b75-bf08-1a9c6464dbd6" />
+
 
 (Benchmarks run on an 8-core host machine)
+
 🛠️ Architecture
 
-    Language: C++17 (No external dependencies)
+Language: C++17 (No external dependencies)
 
-    Concurrency: std::thread for the Kernel, select() for I/O multiplexing.
+Concurrency: std::thread for the Kernel, select() for I/O multiplexing.
 
-    Networking: Raw Berkeley Sockets (<sys/socket.h>).
+Networking: Raw Berkeley Sockets (<sys/socket.h>).
 
-    Fault Tolerance: Active Heartbeats + Ledger Re-verification.
+Fault Tolerance: Active Heartbeats + Ledger Re-verification.
 
 🔮 Future Roadmap
 
-    [ ] Port velum_core.cpp to ESP-IDF (FreeRTOS) for physical microcontroller deployment.
+[ ] Port velum_core.cpp to ESP-IDF (FreeRTOS) for physical microcontroller deployment.
 
-    [ ] Implement dynamic code loading (WebAssembly/Lua) for arbitrary task execution.
+[ ] Implement dynamic code loading (WebAssembly/Lua) for arbitrary task execution.
