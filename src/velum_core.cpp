@@ -1,6 +1,8 @@
 #include "../common/protocol.h"
 #include "../include/network.h"
-#include <algorithm>
+
+#include "../include/wasm3.h"
+
 #include <atomic>
 #include <cstdio>
 #include <cstdlib>
@@ -21,12 +23,12 @@ struct velum_config_t {
   int port;
 };
 
-// --- INTERNAL STATE ---
+// --- STATE ---
 static int my_node_id = 0;
 static int server_fd = 0;
-static int peer_sockets[MAX_PEERS];    // Index = Node ID
-static int inbound_sockets[MAX_PEERS]; // Index = Just a slot (0, 1, 2...)
-static int socket_to_id[1024];         // Map FD -> Node ID
+static int peer_sockets[MAX_PEERS];
+static int inbound_sockets[MAX_PEERS];
+static int socket_to_id[1024];
 static std::atomic<bool> running(true);
 static std::thread background_thread;
 static std::mutex api_mutex;
@@ -40,39 +42,32 @@ struct JobState {
 };
 static std::map<uint32_t, JobState> active_jobs;
 
+// External Logic
 extern void handle_message(int my_id, Message *msg, int src_socket);
 extern int find_best_node(int my_id);
 extern void handle_disconnect(int node_id);
 extern void mark_node_busy(int node_id);
 
-// --- NEW HELPER: Find ALL valid workers (FIXED) ---
+// --- HELPER FUNCTIONS ---
 std::vector<int> find_all_workers(int my_id) {
   std::vector<int> workers;
-
-  // 1. Check Outbound Peers (Index IS the Node ID)
   for (int i = 1; i < MAX_PEERS; i++) {
     if (i == my_id)
       continue;
-    if (peer_sockets[i] > 0) {
+    if (peer_sockets[i] > 0)
       workers.push_back(i);
-    }
   }
-
-  // 2. Check Inbound Sockets (Index is arbitrary, need to look up ID)
   for (int i = 0; i < MAX_PEERS; i++) {
     int fd = inbound_sockets[i];
     if (fd > 0) {
-      int remote_id = socket_to_id[fd]; // Look up who this is
+      int remote_id = socket_to_id[fd];
       if (remote_id > 0 && remote_id != my_id) {
-        // Avoid duplicates (if we are connected both ways)
-        bool already_added = false;
+        bool exists = false;
         for (int w : workers)
           if (w == remote_id)
-            already_added = true;
-
-        if (!already_added) {
+            exists = true;
+        if (!exists)
           workers.push_back(remote_id);
-        }
       }
     }
   }
@@ -85,13 +80,83 @@ long long current_timestamp() {
   return te.tv_sec * 1000LL + te.tv_usec / 1000;
 }
 
+/// --- WASM SANDBOX RUNNER ---
+int execute_wasm_in_sandbox(const uint8_t *binary, uint32_t size,
+                            const char *func_name, int param) {
+  printf("[Wasm3] Initializing Sandbox for '%s' (%d bytes)...\n", func_name,
+         size);
+
+  IM3Environment env = m3_NewEnvironment();
+  if (!env) {
+    printf("[Wasm3] Env Init Failed\n");
+    return -1;
+  }
+
+  // Create Runtime (64KB Stack)
+  IM3Runtime runtime = m3_NewRuntime(env, 64 * 1024, NULL);
+  if (!runtime) {
+    m3_FreeEnvironment(env);
+    return -1;
+  }
+
+  IM3Module module;
+  if (m3_ParseModule(env, &module, binary, size) != m3Err_none) {
+    printf("[Wasm3] Parse Error\n");
+    m3_FreeRuntime(runtime);
+    m3_FreeEnvironment(env);
+    return -2;
+  }
+
+  if (m3_LoadModule(runtime, module) != m3Err_none) {
+    printf("[Wasm3] Load Error\n");
+    m3_FreeRuntime(runtime);
+    m3_FreeEnvironment(env);
+    return -3;
+  }
+
+  IM3Function func;
+  if (m3_FindFunction(&func, runtime, func_name) != m3Err_none) {
+    printf("[Wasm3] Function '%s' not found\n", func_name);
+    m3_FreeRuntime(runtime);
+    m3_FreeEnvironment(env);
+    return -4;
+  }
+
+  // --- FIX IS HERE ---
+  // Do NOT convert to string. Pass the address of the raw integer.
+  const void *args[1] = {&param};
+
+  if (m3_Call(func, 1, args) != m3Err_none) {
+    printf("[Wasm3] Runtime Execution Error (Trap)\n");
+    m3_FreeRuntime(runtime);
+    m3_FreeEnvironment(env);
+    return -5;
+  }
+
+  // Get Result
+  int result = 0;
+  uint64_t val = 0;
+  const void *rets[] = {&val};
+
+  if (m3_GetResults(func, 1, rets) != m3Err_none) {
+    printf("[Wasm3] Could not get result value\n");
+  } else {
+    result = (int)val;
+  }
+
+  printf("[Wasm3] Execution Success! Result: %d\n", result);
+
+  m3_FreeRuntime(runtime);
+  m3_FreeEnvironment(env);
+
+  return result;
+}
 // --- ENGINE LOOP ---
 void velum_engine_loop() {
   fd_set readfds;
   Message msg_buffer;
   long long last_heartbeat = current_timestamp();
 
-  // Init arrays
   for (int i = 0; i < MAX_PEERS; i++) {
     peer_sockets[i] = 0;
     inbound_sockets[i] = 0;
@@ -99,7 +164,7 @@ void velum_engine_loop() {
   for (int i = 0; i < 1024; i++)
     socket_to_id[i] = -1;
 
-  // Connect Loop
+  // Connect Logic
   for (int i = 1; i < MAX_PEERS; i++) {
     if (i == my_node_id)
       continue;
@@ -109,7 +174,7 @@ void velum_engine_loop() {
       socket_to_id[sock] = i;
     }
   }
-  printf("[VelumOS] Kernel Started. Mesh Active.\n");
+  printf("[VelumOS] Kernel Started. Wasm3 Ready.\n");
 
   while (running) {
     FD_ZERO(&readfds);
@@ -154,7 +219,7 @@ void velum_engine_loop() {
           send_message(inbound_sockets[i], &b_msg);
     }
 
-    // Connections
+    // New Connection
     if (FD_ISSET(server_fd, &readfds)) {
       int ns = accept(server_fd, NULL, NULL);
       int added = 0;
@@ -168,19 +233,19 @@ void velum_engine_loop() {
         close(ns);
     }
 
-    // Messages
+    // Handle Socket I/O
     auto handle_sock = [&](int &sock, int i, bool inbound) {
       if (sock > 0 && FD_ISSET(sock, &readfds)) {
         int valread = read(sock, &msg_buffer, sizeof(Message));
         if (valread <= 0) {
-          // CRASH HANDLER
+          // Disconnect
           int dead_node = socket_to_id[sock];
           close(sock);
           sock = 0;
           socket_to_id[sock] = -1;
           if (dead_node != -1) {
             std::lock_guard<std::mutex> lock(api_mutex);
-            printf("🚨 [Kernel] Node %d died!\n", dead_node);
+            printf("[Kernel] Node %d died!\n", dead_node);
             handle_disconnect(dead_node);
 
             if (pending_tasks.count(dead_node)) {
@@ -191,64 +256,122 @@ void velum_engine_loop() {
               ComputeArgs *args =
                   (ComputeArgs *)(lost_msg.payload + sizeof(TaskHeader));
 
-              if (args->iterations > 0) {
-                printf(
-                    "⚠️ [Recovery] Rescheduling chunk of %d iters for Job %d\n",
-                    args->iterations, h->job_id);
-                int new_winner = find_best_node(my_node_id);
-                if (new_winner != -1) {
-                  int new_target = -1;
-                  if (new_winner < MAX_PEERS && peer_sockets[new_winner] > 0)
-                    new_target = peer_sockets[new_winner];
-                  else
-                    for (int k = 0; k < MAX_PEERS; k++)
-                      if (inbound_sockets[k] > 0 &&
-                          socket_to_id[inbound_sockets[k]] == new_winner)
-                        new_target = inbound_sockets[k];
+              if (h->op_code == TaskOp::COMPUTE_PI ||
+                  h->op_code == TaskOp::FIND_PRIMES) {
+                if (args->iterations > 0) {
+                  printf("[Recovery] Rescheduling chunk of %d iters for Job "
+                         "%d\n",
+                         args->iterations, h->job_id);
+                  int new_winner = find_best_node(my_node_id);
+                  if (new_winner != -1) {
+                    int new_target = -1;
+                    if (new_winner < MAX_PEERS && peer_sockets[new_winner] > 0)
+                      new_target = peer_sockets[new_winner];
+                    else
+                      for (int k = 0; k < MAX_PEERS; k++)
+                        if (inbound_sockets[k] > 0 &&
+                            socket_to_id[inbound_sockets[k]] == new_winner)
+                          new_target = inbound_sockets[k];
 
-                  if (new_target != -1) {
-                    send_message(new_target, &lost_msg);
-                    pending_tasks[new_winner] = lost_msg;
+                    if (new_target != -1) {
+                      send_message(new_target, &lost_msg);
+                      pending_tasks[new_winner] = lost_msg;
+                    }
                   }
                 }
               }
             }
           }
         } else {
+          // Message Received
           socket_to_id[sock] = msg_buffer.sender_id;
-          if (msg_buffer.type == MsgType::TASK_PROGRESS ||
-              msg_buffer.type == MsgType::TASK_RESULT) {
+
+          // --- WASM HANDLER ---
+          if (msg_buffer.type == MsgType::TASK_REQUEST) {
+            TaskHeader *h = (TaskHeader *)msg_buffer.payload;
+
+            if (h->op_code == TaskOp::EXECUTE_WASM) {
+              WasmArgs *args =
+                  (WasmArgs *)(msg_buffer.payload + sizeof(TaskHeader));
+              uint8_t *binary_ptr =
+                  msg_buffer.payload + sizeof(TaskHeader) + sizeof(WasmArgs);
+
+              printf("[Kernel] Received Wasm Job %d. Function: %s\n", h->job_id,
+                     args->func_name);
+
+              // RUN SANDBOX
+              int res_val = execute_wasm_in_sandbox(
+                  binary_ptr, args->binary_size, args->func_name, args->param);
+
+              // Reply
+              TaskResult res;
+              res.job_id = h->job_id;
+              res.value = res_val;
+              res.count = 1;
+              Message reply;
+              reply.sender_id = my_node_id;
+              reply.type = MsgType::TASK_RESULT;
+              std::memcpy(reply.payload, &res, sizeof(TaskResult));
+
+              int reply_sock = -1;
+              if (msg_buffer.sender_id < MAX_PEERS &&
+                  peer_sockets[msg_buffer.sender_id] > 0)
+                reply_sock = peer_sockets[msg_buffer.sender_id];
+
+              if (reply_sock != -1)
+                send_message(reply_sock, &reply);
+
+            } else {
+              // Legacy C++ tasks
+              handle_message(my_node_id, &msg_buffer, sock);
+            }
+          } else if (msg_buffer.type == MsgType::TASK_RESULT ||
+                     msg_buffer.type == MsgType::TASK_PROGRESS) {
             std::lock_guard<std::mutex> lock(api_mutex);
             TaskResult *res = (TaskResult *)msg_buffer.payload;
 
-            // Accumulate
             if (active_jobs.count(res->job_id)) {
               active_jobs[res->job_id].current_done += res->count;
               active_jobs[res->job_id].accumulated_value += res->value;
             }
 
-            // Update Pending Ledger
             if (pending_tasks.count(msg_buffer.sender_id)) {
               Message *p_msg = &pending_tasks[msg_buffer.sender_id];
               ComputeArgs *p_args =
                   (ComputeArgs *)(p_msg->payload + sizeof(TaskHeader));
-              if (p_args->iterations > res->count)
-                p_args->iterations -= res->count;
-              else
-                p_args->iterations = 0;
 
-              if (msg_buffer.type == MsgType::TASK_RESULT)
+              // If the pending task is a math task with iterations
+              if (p_args->iterations > res->count) {
+                p_args->iterations -= res->count;
+              } else {
+                p_args->iterations = 0;
+              }
+
+              // Remove from ledger only if completed
+              if (msg_buffer.type == MsgType::TASK_RESULT) {
                 pending_tasks.erase(msg_buffer.sender_id);
+              }
             }
 
-            // Check Global Completion
-            JobState js = active_jobs[res->job_id];
-            if (js.current_done >= js.total_needed) {
-              double pi = 4.0 * ((double)js.accumulated_value /
-                                 (double)js.current_done);
-              printf("✅ [Callback] Job %d FINISHED! PI = %f\n", res->job_id,
-                     pi);
-              active_jobs.erase(res->job_id);
+            if (msg_buffer.type == MsgType::TASK_RESULT) {
+              // Check if this is a tracked Global Job (Scatter-Gather)
+              if (active_jobs.count(res->job_id)) {
+                JobState js = active_jobs[res->job_id];
+                // Only print success if the TOTAL global job is done
+                if (js.current_done >= js.total_needed) {
+                  double pi = 4.0 * ((double)js.accumulated_value /
+                                     (double)js.current_done);
+                  printf("[Callback] Job %d FINISHED! PI = %f\n", res->job_id,
+                         pi);
+                  fflush(stdout); // FORCE FLUSH FOR PYTHON SCRIPT
+                  active_jobs.erase(res->job_id);
+                }
+              } else {
+                // Single Task (Wasm or Simple Math)
+                printf("[Callback] Job %d Returned: %d\n", res->job_id,
+                       res->value);
+                fflush(stdout); // FORCE FLUSH FOR PYTHON SCRIPT
+              }
             }
           } else {
             handle_message(my_node_id, &msg_buffer, sock);
@@ -263,8 +386,6 @@ void velum_engine_loop() {
   }
 }
 
-// --- PUBLIC API ---
-
 void velum_init(int id, int port) {
   my_node_id = id;
   server_fd = setup_server(port);
@@ -273,6 +394,71 @@ void velum_init(int id, int port) {
   background_thread.detach();
 }
 
+// --- API: WASM SPAWN ---
+void velum_spawn_wasm(const char *filepath, const char *func, int param) {
+  std::lock_guard<std::mutex> lock(api_mutex);
+
+  FILE *f = fopen(filepath, "rb");
+  if (!f) {
+    printf("[VelumOS] Could not open %s\n", filepath);
+    return;
+  }
+  fseek(f, 0, SEEK_END);
+  long fsize = ftell(f);
+  fseek(f, 0, SEEK_SET);
+
+  if (fsize > 2000) {
+    printf("[VelumOS] Wasm file too big (Max 2KB)\n");
+    fclose(f);
+    return;
+  }
+
+  uint8_t buffer[2048];
+  fread(buffer, 1, fsize, f);
+  fclose(f);
+
+  int winner = find_best_node(my_node_id);
+  if (winner == -1) {
+    printf("[VelumOS] No workers.\n");
+    return;
+  }
+
+  TaskHeader header;
+  header.op_code = TaskOp::EXECUTE_WASM;
+  header.job_id = rand() % 9999;
+  WasmArgs args;
+  args.binary_size = (uint32_t)fsize;
+  args.param = param;
+  strncpy(args.func_name, func, 31);
+
+  Message msg;
+  msg.sender_id = my_node_id;
+  msg.type = MsgType::TASK_REQUEST;
+
+  uint8_t *ptr = msg.payload;
+  std::memcpy(ptr, &header, sizeof(TaskHeader));
+  ptr += sizeof(TaskHeader);
+  std::memcpy(ptr, &args, sizeof(WasmArgs));
+  ptr += sizeof(WasmArgs);
+  std::memcpy(ptr, buffer, fsize);
+
+  int target = -1;
+  if (winner < MAX_PEERS && peer_sockets[winner] > 0)
+    target = peer_sockets[winner];
+  else
+    for (int i = 0; i < MAX_PEERS; i++)
+      if (inbound_sockets[i] > 0 && socket_to_id[inbound_sockets[i]] == winner)
+        target = inbound_sockets[i];
+
+  if (target != -1) {
+    send_message(target, &msg);
+    mark_node_busy(winner);
+    printf("[VelumOS] Sent Wasm Job %d ('%s') to Node %d\n", header.job_id,
+           func, winner);
+  }
+}
+
+// --- API: STANDARD SCATTER SPAWN ---
 void velum_spawn(TaskOp op, uint32_t work_amount) {
   std::lock_guard<std::mutex> lock(api_mutex);
 

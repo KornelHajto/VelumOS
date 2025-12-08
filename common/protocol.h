@@ -15,7 +15,13 @@ enum class MsgType : uint8_t {
   TASK_PROGRESS
 };
 
-enum class TaskOp : uint8_t { MATH_ADD, MATH_SUB, COMPUTE_PI, FIND_PRIMES };
+enum class TaskOp : uint8_t {
+  MATH_ADD,
+  MATH_SUB,
+  COMPUTE_PI,
+  FIND_PRIMES,
+  EXECUTE_WASM
+};
 
 struct TaskHeader {
   TaskOp op_code;
@@ -29,6 +35,12 @@ struct MathArgs {
 
 struct ComputeArgs {
   uint32_t iterations;
+};
+
+struct WasmArgs {
+  uint32_t binary_size;
+  char func_name[32];
+  int param;
 };
 
 struct TaskResult {
