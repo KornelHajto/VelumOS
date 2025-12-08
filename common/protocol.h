@@ -55,7 +55,8 @@ struct NodeStatus {
 struct Message {
   uint16_t sender_id;
   MsgType type;
-  uint8_t payload[256]; // Generic buffer (Enough for our structs)
+  uint8_t payload[4096]; // We needed to modify this because once WASM support
+                         // is added 256 bytes would not have been enough.
 };
 
 } // namespace velum
