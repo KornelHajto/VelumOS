@@ -11,8 +11,23 @@ PROJECT_ROOT = os.path.abspath(os.path.join(TESTS_DIR, ".."))
 NODE_BIN = f"{PROJECT_ROOT}/node"
 LOG_DIR = os.path.join(TESTS_DIR, "benchmark_logs")
 
-# Workload: 2 Billion (Adjust if too slow for your PC)
-WORKLOAD = 2000000000 
+# Benchmark Definitions
+# We only benchmark tasks that support the 'scatter' interface (start, end)
+BENCHMARKS = [
+    {
+        "name": "Wasm Pi (Monte Carlo)",
+        # Function: pi_hits(start, end). Workload: 200 Million iterations
+        "command_template": "scatter tests/pi.wasm pi_hits 0 2000000000",
+        "file": "tests/pi.wasm"
+    },
+    {
+        "name": "Wasm Primes (Brute Force)",
+        # Function: count_primes(start, end). Workload: 0 to 5 000,000
+        # (Prime checking is expensive, so number is smaller than Pi)
+        "command_template": "scatter tests/primes.wasm count_primes 0 50000000",
+        "file": "tests/primes.wasm"
+    }
+]
 
 NODES = {}
 
@@ -41,7 +56,6 @@ def send_command(node_id, cmd):
         NODES[node_id].stdin.flush()
 
 def wait_for_completion(monitor_node, timeout=120):
-    """Watches log file for completion keyword."""
     log_path = f"{LOG_DIR}/node_{monitor_node}.log"
     start_time = time.time()
     
@@ -49,98 +63,107 @@ def wait_for_completion(monitor_node, timeout=120):
         if os.path.exists(log_path):
             with open(log_path, "r") as f:
                 content = f.read()
-                # FIXED KEYWORD: Matches what velum_core.cpp actually prints
-                if "FINISHED!" in content or "FINAL SUCCESS" in content:
+                # Matches standard "FINISHED" or Wasm "Returned"
+                if "FINISHED!" in content or "Returned:" in content:
                     return time.time() - start_time
         time.sleep(0.1)
     return -1 
 
-def run_benchmark():
-    results = {} 
+def run_suite():
     setup()
     
-    # Test range: 2 nodes (1 worker) to 9 nodes (8 workers)
-    node_counts = [2, 4, 8, 16]
+    # Test Config: 2 nodes (1 worker) up to 8 nodes (7 workers)
+    node_counts = [2, 3, 4, 5, 6, 7, 8]
     
-    print("\n🚀 STARTING PERFORMANCE BENCHMARK")
-    print(f"   Task: Calculate PI ({WORKLOAD} iterations)")
-    print("="*50)
+    all_results = {} # Store results for all benchmarks
 
-    for n in node_counts:
-        num_workers = n - 1
-        print(f"\n[Test Case] {num_workers} Workers (Total Nodes: {n})")
+    for bench in BENCHMARKS:
+        test_name = bench['name']
+        cmd = bench['command_template']
+        wasm_file = os.path.join(PROJECT_ROOT, bench['file'])
+
+        # Skip if file doesn't exist (avoid crashing)
+        if not os.path.exists(wasm_file):
+            print(f"\n⚠️  Skipping {test_name}: File {bench['file']} not found.")
+            continue
+
+        print(f"\n🚀 BENCHMARK: {test_name}")
+        print(f"   Command: {cmd}")
+        print("="*50)
         
-        start_cluster(n)
-        
-        # Wait for mesh sync
-        sync_time = 3 + (n * 0.2)
-        time.sleep(sync_time)
-        
-        # Send Job
-        send_command(1, f"pi {WORKLOAD}")
-        
-        # Measure
-        duration = wait_for_completion(1, timeout=120)
-        
-        if duration != -1:
-            print(f"   ✅ Finished in {duration:.4f} seconds")
-            results[n] = duration
-        else:
-            print("   ❌ Timed out! (Check logs in benchmark_logs/)")
-            results[n] = None
+        bench_data = {} # Results for this specific test
+
+        for n in node_counts:
+            num_workers = n - 1
+            print(f"\n[Run] {num_workers} Workers (Total Nodes: {n})")
             
-        cleanup()
-        time.sleep(1) 
+            start_cluster(n)
+            
+            # Wasm engine needs a bit more time to sync/load on startup
+            sync_time = 3 + (n * 0.2)
+            time.sleep(sync_time)
+            
+            send_command(1, cmd)
+            
+            duration = wait_for_completion(1, timeout=180)
+            
+            if duration != -1:
+                print(f"   ✅ Finished in {duration:.4f} seconds")
+                bench_data[n] = duration
+            else:
+                print("   ❌ Timed out!")
+                bench_data[n] = None
+                
+            cleanup()
+            time.sleep(1) 
 
-    return results
+        all_results[test_name] = bench_data
 
-def plot_results(results):
-    print("\n📊 Generating Graph...")
-    
-    x = [n for n, t in results.items() if t is not None]
-    y = [results[n] for n in x]
-    
-    if not x:
-        print("No successful data to plot.")
-        return
+    return all_results
 
-    # Calculate Speedup (Time(1 Worker) / Time(N Workers))
-    # Note: x[0] is 2 nodes (1 worker)
-    base_time = y[0] 
-    speedup = [base_time / t for t in y]
+def plot_all(all_results):
+    print("\n📊 Generating Graphs...")
     
-    # X-axis should label WORKERS, not Nodes, to be clearer
-    workers_count = [n - 1 for n in x]
+    for test_name, data in all_results.items():
+        x = [n for n, t in data.items() if t is not None]
+        y = [data[n] for n in x]
+        
+        if not x: continue
 
-    plt.figure(figsize=(10, 8))
-    
-    # Plot 1: Execution Time
-    plt.subplot(2, 1, 1)
-    plt.plot(workers_count, y, marker='o', linestyle='-', color='#FF6B6B', linewidth=2, label='Execution Time')
-    plt.title(f'VelumOS Performance: Distributed PI ({WORKLOAD} iters)')
-    plt.ylabel('Time (seconds)')
-    plt.grid(True, linestyle='--', alpha=0.6)
-    
-    # Plot 2: Speedup
-    plt.subplot(2, 1, 2)
-    plt.plot(workers_count, speedup, marker='s', linestyle='-', color='#4ECDC4', linewidth=2, label='Actual Speedup')
-    
-    # Ideal Linear Speedup Line
-    plt.plot(workers_count, workers_count, linestyle=':', color='gray', alpha=0.7, label='Ideal Linear Speedup')
-    
-    plt.xlabel('Number of Worker Nodes')
-    plt.ylabel('Speedup Factor (x)')
-    plt.legend()
-    plt.grid(True, linestyle='--', alpha=0.6)
-    
-    output_file = os.path.join(TESTS_DIR, "speedup_graph.png")
-    plt.savefig(output_file)
-    print(f"✨ Graph saved to: {output_file}")
+        base_time = y[0] 
+        speedup = [base_time / t for t in y]
+        workers_count = [n - 1 for n in x]
+
+        plt.figure(figsize=(10, 8))
+        
+        # Plot 1: Time
+        plt.subplot(2, 1, 1)
+        plt.plot(workers_count, y, marker='o', linestyle='-', color='#FF6B6B', linewidth=2, label='Time (s)')
+        plt.title(f'VelumOS: {test_name}')
+        plt.ylabel('Seconds')
+        plt.grid(True, linestyle='--', alpha=0.6)
+        
+        # Plot 2: Speedup
+        plt.subplot(2, 1, 2)
+        plt.plot(workers_count, speedup, marker='s', linestyle='-', color='#4ECDC4', linewidth=2, label='Actual Speedup')
+        plt.plot(workers_count, workers_count, linestyle=':', color='gray', alpha=0.7, label='Ideal')
+        
+        plt.xlabel('Number of Worker Nodes')
+        plt.ylabel('Speedup Factor')
+        plt.legend()
+        plt.grid(True, linestyle='--', alpha=0.6)
+        
+        # Save as filename based on test name
+        safe_name = test_name.replace(" ", "_").replace("(", "").replace(")", "").lower()
+        output_file = os.path.join(TESTS_DIR, f"graph_{safe_name}.png")
+        plt.savefig(output_file)
+        print(f"✨ Saved graph: {output_file}")
+        
     plt.show()
 
 if __name__ == "__main__":
     try:
-        data = run_benchmark()
-        plot_results(data)
+        results = run_suite()
+        plot_all(results)
     except KeyboardInterrupt:
         cleanup()

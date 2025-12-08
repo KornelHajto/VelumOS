@@ -1,8 +1,16 @@
-[VelumOS] Initialized Node 4 on Port 8004
->>> User App Ready. Type 'pi <amount>' to scatter work.
-[VelumOS] Kernel Started. Mesh Active.
-[Job 9431] Received Task (Op: 2). Processing...
-   -> [Job 9431] Checkpoint sent (50000000 done, 150000000 left)
-   -> [Job 9431] Checkpoint sent (50000000 done, 100000000 left)
-   -> [Job 9431] Checkpoint sent (50000000 done, 50000000 left)
-   -> [Job 9431] Final result sent.
+[VelumOS] Node 4 on Port 8004
+>>> User App Ready.
+    Type: wasm <file> <func> <arg1> ... (Single execution)
+    Type: scatter <file> <func> <start> <end> (Distributed execution)
+    Type: pi <iterations> (Legacy benchmark)
+[VelumOS] UDP Discovery Active on Port 8888
+[VelumOS] Kernel Started.
+[Discovery] Found Node 1 at 10.2.0.40
+[Discovery] Found Node 5 at 10.2.0.40
+[Discovery] Found Node 6 at 10.2.0.40
+[Discovery] Found Node 2 at 10.2.0.40
+[Discovery] Found Node 8 at 10.2.0.40
+[Discovery] Found Node 3 at 10.2.0.40
+[Discovery] Found Node 7 at 10.2.0.40
+[Kernel] Job 7071: Wasm 'count_primes' (2 args)
+📦 [Wasm3] Sandbox: 'count_primes' (870 bytes, 2 args)...

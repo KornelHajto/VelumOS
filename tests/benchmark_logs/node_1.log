@@ -1,15 +1,23 @@
-[VelumOS] Initialized Node 1 on Port 8001
->>> User App Ready. Type 'pi <amount>' to scatter work.
-[VelumOS] Kernel Started. Mesh Active.
-[VelumOS] Scattering Job 9431: 2000000000 items across 10 workers...
-   -> Sent chunk (200000000) to Node 2
-   -> Sent chunk (200000000) to Node 3
-   -> Sent chunk (200000000) to Node 4
-   -> Sent chunk (200000000) to Node 5
-   -> Sent chunk (200000000) to Node 6
-   -> Sent chunk (200000000) to Node 7
-   -> Sent chunk (200000000) to Node 8
-   -> Sent chunk (200000000) to Node 9
-   -> Sent chunk (200000000) to Node 10
-   -> Sent chunk (200000000) to Node 11
-✅ [Callback] Job 9431 FINISHED! PI = 3.141559
+[VelumOS] Node 1 on Port 8001
+>>> User App Ready.
+    Type: wasm <file> <func> <arg1> ... (Single execution)
+    Type: scatter <file> <func> <start> <end> (Distributed execution)
+    Type: pi <iterations> (Legacy benchmark)
+[VelumOS] UDP Discovery Active on Port 8888
+[VelumOS] Kernel Started.
+[Discovery] Found Node 5 at 10.2.0.40
+[Discovery] Found Node 6 at 10.2.0.40
+[Discovery] Found Node 2 at 10.2.0.40
+[Discovery] Found Node 3 at 10.2.0.40
+[Discovery] Found Node 8 at 10.2.0.40
+[Discovery] Found Node 7 at 10.2.0.40
+[Discovery] Found Node 4 at 10.2.0.40
+[VelumOS] Scattering Wasm Job 7071: Range [0-50000000] across 7 workers...
+   -> Sent range [0-7142857] to Node 2
+   -> Sent range [7142857-14285714] to Node 3
+   -> Sent range [14285714-21428571] to Node 4
+   -> Sent range [21428571-28571428] to Node 5
+   -> Sent range [28571428-35714285] to Node 6
+   -> Sent range [35714285-42857142] to Node 7
+   -> Sent range [42857142-50000000] to Node 8
+✅ [Callback] Job 7071 Returned: 485708

@@ -420,5 +420,120 @@ void velum_spawn_wasm(const char *filepath, const char *func,
   }
 }
 
+void velum_spawn_wasm_distributed(const char *filepath, const char *func,
+                                  int start, int end) {
+  std::lock_guard<std::mutex> lock(api_mutex);
+
+  // 1. Load File
+  FILE *f = fopen(filepath, "rb");
+  if (!f) {
+    printf("Error: No file %s\n", filepath);
+    return;
+  }
+  fseek(f, 0, SEEK_END);
+  long fsize = ftell(f);
+  fseek(f, 0, SEEK_SET);
+  if (fsize > 2000) {
+    printf("File too big\n");
+    fclose(f);
+    return;
+  }
+  uint8_t buffer[2048];
+  fread(buffer, 1, fsize, f);
+  fclose(f);
+
+  // 2. Find Workers
+  std::vector<int> workers = find_all_workers(my_node_id);
+  if (workers.empty()) {
+    printf("[VelumOS] No workers found. Waiting 1s...\n");
+    std::this_thread::sleep_for(std::chrono::seconds(1));
+    workers = find_all_workers(my_node_id);
+  }
+  if (workers.empty()) {
+    printf("No workers.\n");
+    return;
+  }
+
+  // 3. Calculate Splits
+  int range = end - start;
+  int num_workers = workers.size();
+  int chunk_size = range / num_workers;
+  int remainder = range % num_workers;
+
+  uint32_t job_id = rand() % 9999;
+  active_jobs[job_id] = {(uint32_t)range, 0, 0}; // Track total range progress
+
+  printf(
+      "[VelumOS] Scattering Wasm Job %d: Range [%d-%d] across %d workers...\n",
+      job_id, start, end, num_workers);
+
+  int current_start = start;
+
+  for (int i = 0; i < num_workers; i++) {
+    int worker_id = workers[i];
+    int my_chunk = chunk_size + (i == num_workers - 1 ? remainder : 0);
+    int my_end = current_start + my_chunk;
+
+    // 4. Prepare Wasm Args: [ "start", "end" ]
+    char s_start[16], s_end[16];
+    sprintf(s_start, "%d", current_start);
+    sprintf(s_end, "%d", my_end);
+
+    // Pack arguments into blob
+    std::vector<char> arg_blob;
+    // Push start string
+    for (char *c = s_start; *c; c++)
+      arg_blob.push_back(*c);
+    arg_blob.push_back('\0');
+    // Push end string
+    for (char *c = s_end; *c; c++)
+      arg_blob.push_back(*c);
+    arg_blob.push_back('\0');
+
+    // 5. Construct Message
+    TaskHeader header;
+    header.op_code = TaskOp::EXECUTE_WASM;
+    header.job_id = job_id;
+    WasmArgs wasm_args;
+    wasm_args.binary_size = (uint32_t)fsize;
+    wasm_args.argc = 2; // Always 2 args: start, end
+    wasm_args.args_size = arg_blob.size();
+    strncpy(wasm_args.func_name, func, 31);
+
+    Message msg;
+    msg.sender_id = my_node_id;
+    msg.type = MsgType::TASK_REQUEST;
+
+    uint8_t *ptr = msg.payload;
+    std::memcpy(ptr, &header, sizeof(TaskHeader));
+    ptr += sizeof(TaskHeader);
+    std::memcpy(ptr, &wasm_args, sizeof(WasmArgs));
+    ptr += sizeof(WasmArgs);
+    std::memcpy(ptr, buffer, fsize);
+    ptr += fsize;
+    std::memcpy(ptr, arg_blob.data(), arg_blob.size());
+
+    // 6. Send
+    int target = -1;
+    if (worker_id < MAX_PEERS && peer_sockets[worker_id] > 0)
+      target = peer_sockets[worker_id];
+    else
+      for (int k = 0; k < MAX_PEERS; k++)
+        if (inbound_sockets[k] > 0 &&
+            socket_to_id[inbound_sockets[k]] == worker_id)
+          target = inbound_sockets[k];
+
+    if (target != -1) {
+      send_message(target, &msg);
+      mark_node_busy(worker_id);
+      pending_tasks[worker_id] = msg;
+      printf("   -> Sent range [%d-%d] to Node %d\n", current_start, my_end,
+             worker_id);
+    }
+
+    current_start = my_end; // Move cursor for next worker
+  }
+}
+
 // Legacy stub
 void velum_spawn(TaskOp op, uint32_t work_amount) {}
