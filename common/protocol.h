@@ -9,7 +9,6 @@ namespace velum {
 enum class MsgType : uint8_t {
   HEARTBEAT,
   STATUS_REPORT,
-  DATA,
   TASK_REQUEST,
   TASK_RESULT,
   TASK_PROGRESS
@@ -32,7 +31,6 @@ struct MathArgs {
   int a;
   int b;
 };
-
 struct ComputeArgs {
   uint32_t iterations;
 };
@@ -40,7 +38,8 @@ struct ComputeArgs {
 struct WasmArgs {
   uint32_t binary_size;
   char func_name[32];
-  int param;
+  uint32_t argc;      // Count: How many args?
+  uint32_t args_size; // Size: How many bytes for the string blob?
 };
 
 struct TaskResult {
@@ -67,11 +66,9 @@ struct NodeStatus {
 struct Message {
   uint16_t sender_id;
   MsgType type;
-  uint8_t payload[4096]; // We needed to modify this because once WASM support
-                         // is added 256 bytes would not have been enough.
+  uint8_t payload[4096];
 };
 
 } // namespace velum
 #pragma pack(pop)
-
-#endif // !PROTOCOL_H
+#endif
